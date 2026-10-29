@@ -1,0 +1,30 @@
+[project]
+name = "smc-wildfire"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Gabriel-PEZ", email = "gabrielpezennec@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "matplotlib>=3.11.2",
+    "numba>=0.68.1",
+    "numpy>=2.5.4",
+    "pandas>=3.1.0",
+    "scipy>=1.18.1",
+    "tqdm>=4.70.1",
+]
+
+[project.scripts]
+smc-wildfire = "smc_wildfire:main"
+
+[build-system]
+requires = ["uv_build>=0.12.15,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.4.0",
+    "pytest>=9.2.0",
+]
