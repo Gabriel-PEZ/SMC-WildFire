@@ -39,7 +39,7 @@ bonne postérieure ie p(x_{k+1} | y_{1:k+1})
 """
 
 def prior_score(X_tau, X_0, tau, eps_a, eps_b):
-    """
+    r"""
     - X_tau : représente l'état de la particule au temps tau durant 
     la reverse diffusion
     - X_0 : représente l'état de la particule avant la forward diffusion ie 
@@ -61,7 +61,12 @@ def ll_score(Y, X_tau, C, std_obs):
     # return C.transpose() @ ((Y - C @ X_tau)/std_obs**2)
     # version vectorisée : on stocke les particules du pseudo temps tau 
     # dans une matrice Nxd i.e. une ligne = une particule
-    return ((Y - X_tau @ C.T)/std_obs**2) @ C
+    # rajout du type pour gérer les cas de matrice diag et éviter de stocker des 
+    # matrices diag énormes
+    if np.isscalar(C):
+        return ((Y - X_tau * C)/std_obs**2) * C
+    else:
+        return ((Y - X_tau @ C.T)/std_obs**2) @ C
 
 def score(Y, X_tau, X_0, C, std_obs, tau, eps_a, eps_b):
     """
@@ -95,9 +100,10 @@ def step_reverse_diffusion(Y, X_tau, X_0, C, std_obs, tau, dtau, eps_a, eps_b, r
     diffusion = np.sqrt(b2(tau, eps_a, eps_b) * dtau) * rng.standard_normal(X_tau.shape)
     return X_tau - drift + diffusion
 
-def reverse_diffusion(num_steps, X_tau1, Y, X_0, C, std_obs, eps_a, eps_b, rng, d):
+def reverse_diffusion(num_steps, Y, X_0, C, std_obs, eps_a, eps_b, rng):
+    # X_{tau = 1}
+    X_tau = initialize_reverse_diffusion(X_0, eps_a, eps_b, rng)
     dtau = 1/num_steps
-    X_tau = X_tau1
     for i in range(num_steps):
         tau = 1 - i*dtau
         X_tau = step_reverse_diffusion(Y, X_tau, X_0, C, std_obs, tau, dtau, eps_a, eps_b, rng)
@@ -110,26 +116,45 @@ rng = np.random.default_rng(2003)
 
 # %%
 
-a = 0.95 # coef dans la transition de X
+phi = 0.95 # coef dans la transition de X
 # (2 dans l'article, mais la dynamique explose)
 d = 2500 # dimension X et Y 
 T = 30 # nombre d'obs
 
-mean_0 = np.zeros(d)
-X_0 = mean_0 + rng.standard_normal(d)
-
-# %%
+X_0 = rng.standard_normal(d)
 
 X = np.zeros((T,d))
 Y = np.zeros((T,d))
-X[0] = a*X_0 + rng.standard_normal(d) * np.sqrt(0.0125) 
+# on considère qu'on commence à Y_1|X_1 et non Y_0|X_0
+X[0] = phi*X_0 + rng.standard_normal(d) * np.sqrt(0.0125) 
 Y[0] = 0.25*X[0] + rng.standard_normal(d) * np.sqrt(0.01)
 for i in range(1,T):
-    X[i] = a*X[i-1] + rng.standard_normal(d) * np.sqrt(0.0125)
+    X[i] = phi*X[i-1] + rng.standard_normal(d) * np.sqrt(0.0125)
     Y[i] = 0.25*X[i] + rng.standard_normal(d) * np.sqrt(0.01)
 
 # %%
 
+rng_ensf = np.random.default_rng(1011)
+num_particles = 100
+num_steps = 100
+# hyperparamètres que les auteurs ont tuné sur leur exemple synthétique
+eps_a = 0.96
+eps_b = 0.03
+C = 0.25 
+std_obs = np.sqrt(0.01)
 
-X[0].shape
+# On initialise les particules : 
+particles = np.zeros((T, num_particles, d))
+
+# X_{1|0}
+particles[0] = phi*rng_ensf.standard_normal((num_particles, d)) + rng_ensf.standard_normal((num_particles, d)) * np.sqrt(0.0125)
+particles[0] = reverse_diffusion(num_steps, Y[0], particles[0], C, std_obs, eps_a, eps_b, rng_ensf)
+for t in range(1,T):
+    particles[t] = phi*particles[t-1] + rng_ensf.standard_normal((num_particles, d)) * np.sqrt(0.0125)
+    particles[t] = reverse_diffusion(num_steps, Y[t], particles[t], C, std_obs, eps_a, eps_b, rng_ensf)
+
+# %%
+
+particles[0]
+
 # %%
