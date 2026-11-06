@@ -116,7 +116,7 @@ rng = np.random.default_rng(2003)
 
 # %%
 
-phi = 1.05 # coef dans la transition de X
+phi = 0.95 # coef dans la transition de X
 # (2 dans l'article, mais la dynamique explose)
 d = 2500 # dimension X et Y 
 T = 30 # nombre d'obs
@@ -162,3 +162,62 @@ plt.plot(np.arange(T), rmse)
 plt.show()
 
 # %%
+
+def systematic_resampling(W, rng, num_particles):
+
+    W_cumsum = np.cumsum(W)
+    U = np.zeros(num_particles)
+    U[0] = rng.uniform(low=0.0, high=1/num_particles)
+    for i in range(1,num_particles):
+        U[i] = U[0] + i/num_particles
+    return np.searchsorted(W_cumsum, U)
+
+
+def ESS(W):
+    return 1/(W**2).sum()
+
+
+def bpf_filer(Y, num_particles, d, rng_pf, phi, std_obs, C):
+    """
+    Filtre bootstrap avec resampling systématique selon ESS
+    """
+    T = Y.shape[0]
+    W = np.zeros((T, num_particles))
+    particles = np.zeros((T, num_particles, d))
+
+    # init des particules
+    particles_0 = rng_pf.standard_normal((num_particles, d))
+
+    # propagation ie X_1|X_0 
+    particles[0] = phi*particles_0 + rng_pf.standard_normal((num_particles, d)) * np.sqrt(0.0125) 
+    W[0] = np.exp(-1/(2 * std_obs**2) * ((Y[0] - C * particles[0])**2).sum(axis=1))
+    W[0] = W[0]/W[0].sum()
+
+    # systematic resampling si ESS <= N/2
+    if ESS(W[0]) <= num_particles/2:
+        idx_resampling = systematic_resampling(W[0], rng_pf, num_particles)
+        particles[0] = particles[0][idx_resampling]
+        W[0] = 1/num_particles
+
+    for t in range(1,T):
+
+        particles[t] = phi*particles[t-1] + rng_pf.standard_normal((num_particles, d)) * np.sqrt(0.0125)
+        W[t] = W[t-1] * np.exp(-1/(2 * std_obs**2) * ((Y[t] - C * particles[t])**2).sum(axis=1))
+        W[t] = W[t]/W[t].sum()
+    
+        # systematic resampling si ESS <= N/2
+        if ESS(W[t]) <= num_particles/2:
+            idx_resampling = systematic_resampling(W[t], rng_pf, num_particles)
+            particles[t] = particles[t][idx_resampling]
+            W[t] = 1/num_particles
+
+    return W, particles
+
+
+# %%
+
+rng_ensf.uniform()
+
+# %%
+
+
