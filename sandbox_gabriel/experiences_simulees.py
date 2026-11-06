@@ -116,7 +116,7 @@ rng = np.random.default_rng(2003)
 
 # %%
 
-phi = 0.95 # coef dans la transition de X
+phi = 1.05 # coef dans la transition de X
 # (2 dans l'article, mais la dynamique explose)
 d = 2500 # dimension X et Y 
 T = 30 # nombre d'obs
@@ -155,6 +155,10 @@ for t in range(1,T):
 
 # %%
 
-particles[0]
+mean_particles = particles.mean(axis=1)
+rmse = np.sqrt(np.mean((mean_particles - X)**2, axis=1))
+
+plt.plot(np.arange(T), rmse)
+plt.show()
 
 # %%
