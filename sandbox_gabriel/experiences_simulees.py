@@ -75,22 +75,31 @@ Fonction pour la forward diffusion ie on ne fait pas la discrétisation
 mais on simule directement X_{tau=1} | X_0 = x_0 ~ N(x_0 * alpha_1, beta^2_1 I)
 """
 
-def initialize_reverse_diffusion(X_0, eps_a, eps_b, rng, d):
-    return X_0 * alpha(1, eps_a) + np.sqrt(beta2(1, eps_b)) * rng.standard_normal(d)
+def initialize_reverse_diffusion(X_0, eps_a, eps_b, rng):
+    return X_0 * alpha(1, eps_a) + np.sqrt(beta2(1, eps_b)) * rng.standard_normal(X_0.shape)
 
 """
 Fonction pour un step dans la reverse diffusion SDE discrétisé par Euler-Maruyama
 """
 
-def step_reverse_diffusion(Y, X_tau, X_0, C, std_obs, tau, dtau, eps_a, eps_b, rng, d):
+def step_reverse_diffusion(Y, X_tau, X_0, C, std_obs, tau, dtau, eps_a, eps_b, rng):
     """
     A partir du X_tau courant dans la reverse diffusion et le pas dtau
     renvoie X_{tau - dtau}
     """
     score_drift = score(Y, X_tau, X_0, C, std_obs, tau, eps_a, eps_b)
     drift = (a(tau, eps_a) * X_tau - b2(tau, eps_a, eps_b) * score_drift) * dtau
-    diffusion = np.sqrt(b2(tau, eps_a, eps_b) * dtau) * rng.standard_normal(d)
+    diffusion = np.sqrt(b2(tau, eps_a, eps_b) * dtau) * rng.standard_normal(X_tau.shape)
     return X_tau - drift + diffusion
+
+def reverse_diffusion(num_steps, X_tau1, Y, X_0, C, std_obs, eps_a, eps_b, rng, d):
+    tau = 1.0
+    dtau = 1/num_steps
+    X_tau = X_tau1
+    for i in range(num_steps):
+        tau = 1 - i*dtau
+        X_tau = step_reverse_diffusion(Y, X_tau, X_0, C, std_obs, tau, dtau, eps_a, eps_b, rng, d)
+    return X_tau 
 
 # %%
 
@@ -120,3 +129,5 @@ for i in range(1,T):
 # %%
 
 
+X[0].shape
+# %%
