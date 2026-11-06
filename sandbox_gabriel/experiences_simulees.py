@@ -1,5 +1,6 @@
 # %%
 
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -111,57 +112,9 @@ def reverse_diffusion(num_steps, Y, X_0, C, std_obs, eps_a, eps_b, rng):
 
 # %%
 
-rng = np.random.default_rng(2003)
-# générations des données synthétiques
-
-# %%
-
-phi = 0.95 # coef dans la transition de X
-# (2 dans l'article, mais la dynamique explose)
-d = 2500 # dimension X et Y 
-T = 30 # nombre d'obs
-
-X_0 = rng.standard_normal(d)
-
-X = np.zeros((T,d))
-Y = np.zeros((T,d))
-# on considère qu'on commence à Y_1|X_1 et non Y_0|X_0
-X[0] = phi*X_0 + rng.standard_normal(d) * np.sqrt(0.0125) 
-Y[0] = 0.25*X[0] + rng.standard_normal(d) * np.sqrt(0.01)
-for i in range(1,T):
-    X[i] = phi*X[i-1] + rng.standard_normal(d) * np.sqrt(0.0125)
-    Y[i] = 0.25*X[i] + rng.standard_normal(d) * np.sqrt(0.01)
-
-# %%
-
-rng_ensf = np.random.default_rng(1011)
-num_particles = 100
-num_steps = 100
-# hyperparamètres que les auteurs ont tuné sur leur exemple synthétique
-eps_a = 0.96
-eps_b = 0.03
-C = 0.25 
-std_obs = np.sqrt(0.01)
-
-# On initialise les particules : 
-particles = np.zeros((T, num_particles, d))
-
-# X_{1|0}
-particles[0] = phi*rng_ensf.standard_normal((num_particles, d)) + rng_ensf.standard_normal((num_particles, d)) * np.sqrt(0.0125)
-particles[0] = reverse_diffusion(num_steps, Y[0], particles[0], C, std_obs, eps_a, eps_b, rng_ensf)
-for t in range(1,T):
-    particles[t] = phi*particles[t-1] + rng_ensf.standard_normal((num_particles, d)) * np.sqrt(0.0125)
-    particles[t] = reverse_diffusion(num_steps, Y[t], particles[t], C, std_obs, eps_a, eps_b, rng_ensf)
-
-# %%
-
-mean_particles = particles.mean(axis=1)
-rmse = np.sqrt(np.mean((mean_particles - X)**2, axis=1))
-
-plt.plot(np.arange(T), rmse)
-plt.show()
-
-# %%
+"""
+fonctions pour filters bpf (avec systematic resampling basé sur ESS)
+"""
 
 def systematic_resampling(W, rng, num_particles):
 
@@ -182,7 +135,7 @@ def log_ESS(log_W):
     return - max_log_W - np.log(np.exp(2 * log_W - max_log_W).sum())
 
 
-def bpf_filer(Y, num_particles, d, rng_pf, phi, std_obs, C):
+def bpf_filer(Y, num_particles, d, rng_pf, phi, std_obs, std_state, C):
     """
     Filtre bootstrap avec resampling systématique selon ESS
     """
@@ -196,7 +149,7 @@ def bpf_filer(Y, num_particles, d, rng_pf, phi, std_obs, C):
     log_N = np.log(num_particles)
 
     # propagation ie X_1|X_0 
-    particles[0] = phi*particles_0 + rng_pf.standard_normal((num_particles, d)) * np.sqrt(0.0125) 
+    particles[0] = phi*particles_0 + rng_pf.standard_normal((num_particles, d)) * std_state
     log_w = (-1/(2 * std_obs**2)*(Y[0] - C * particles[0])**2).sum(axis=1)
     max_log_w = np.max(log_w)
     # log sum exp avec trick du max pour éviter underflow/overflow et normalisation directement avec l'espace log
@@ -212,7 +165,7 @@ def bpf_filer(Y, num_particles, d, rng_pf, phi, std_obs, C):
 
     for t in range(1,T):
 
-        particles[t] = phi*particles[t-1] + rng_pf.standard_normal((num_particles, d)) * np.sqrt(0.0125)
+        particles[t] = phi*particles[t-1] + rng_pf.standard_normal((num_particles, d)) * std_state
         log_w = log_W[t-1] + (-1/(2 * std_obs**2) * ((Y[t] - C * particles[t])**2).sum(axis=1))
         max_log_w = np.max(log_w)
         log_W[t] = log_w - max_log_w - np.log((np.exp(log_w - max_log_w)).sum())
@@ -228,10 +181,79 @@ def bpf_filer(Y, num_particles, d, rng_pf, phi, std_obs, C):
 
     return log_W, particles, log_ESS_hist
 
+# %%
+# générations des données synthétiques
+rng_data = np.random.default_rng(2003)
+
+phi = 0.95 # coef dans la transition de X
+# (2 dans l'article, mais la dynamique explose)
+d = 2500 # dimension X et Y 
+T = 100 # nombre d'obs
+
+std_state = np.sqrt(0.0125)
+std_obs = np.sqrt(0.01)
+
+X_0 = rng_data.standard_normal(d)
+
+X = np.zeros((T,d))
+Y = np.zeros((T,d))
+# on considère qu'on commence à Y_1|X_1 et non Y_0|X_0
+X[0] = phi*X_0 + rng_data.standard_normal(d) * std_state
+Y[0] = 0.25*X[0] + rng_data.standard_normal(d) * std_obs
+for i in range(1,T):
+    X[i] = phi*X[i-1] + rng_data.standard_normal(d) * std_state
+    Y[i] = 0.25*X[i] + rng_data.standard_normal(d) * std_obs
+
+# %%
+# EnSF
+rng_ensf = np.random.default_rng(1011)
+num_particles = 100
+num_steps = 100
+# hyperparamètres que les auteurs ont tuné sur leur exemple synthétique
+eps_a = 0.96
+eps_b = 0.03
+C = 0.25 
+
+start_ensf = time.perf_counter()
+# On initialise les particules : 
+particles_ensf = np.zeros((T, num_particles, d))
+
+# X_{1|0}
+particles_ensf[0] = phi*rng_ensf.standard_normal((num_particles, d)) + rng_ensf.standard_normal((num_particles, d)) * std_state
+particles_ensf[0] = reverse_diffusion(num_steps, Y[0], particles_ensf[0], C, std_obs, eps_a, eps_b, rng_ensf)
+for t in range(1,T):
+    particles_ensf[t] = phi*particles_ensf[t-1] + rng_ensf.standard_normal((num_particles, d)) * std_state
+    particles_ensf[t] = reverse_diffusion(num_steps, Y[t], particles_ensf[t], C, std_obs, eps_a, eps_b, rng_ensf)
+end_ensf = time.perf_counter()
+
+# %% 
+# BPF
+rng_pf = np.random.default_rng(101103)
+start_bpf = time.perf_counter()
+log_W, particles_bpf, log_ESS_hist = bpf_filer(Y, num_particles, d, rng_pf, phi, std_obs, std_state, C)
+end_bpf = time.perf_counter()
+
+# %%
+
+X_hat_bpf = np.sum(particles_bpf * np.exp(log_W)[:, :, None], axis=1)
+rmse_bpf = np.sqrt(np.mean((X_hat_bpf - X)**2, axis=1))
+
+X_hat_ensf = particles_ensf.mean(axis=1)
+rmse_ensf = np.sqrt(np.mean((X_hat_ensf - X)**2, axis=1))
+
+# %%
+
+compute_time_ensf = end_ensf - start_ensf
+compute_time_bpf = end_bpf - start_bpf
+fig, ax = plt.subplots()
+ax.plot(np.arange(T), rmse_ensf, label=f"ENSF : {compute_time_ensf:.2f} secs")
+ax.plot(np.arange(T), rmse_bpf, label=f"BPF : {compute_time_bpf:.2f} secs")
+ax.set_title("RMSE against T")
+ax.legend()
+plt.show()
 
 # %%
 
 
-# %%
 
 
