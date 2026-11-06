@@ -58,7 +58,10 @@ def ll_score(Y, X_tau, C, std_obs):
     - C : matrice dans l'équation d'observation du SSM 
     - std_obs : écart-type du bruit d'obs
     """
-    return C.transpose() @ ((Y - C @ X_tau)/std_obs**2)
+    # return C.transpose() @ ((Y - C @ X_tau)/std_obs**2)
+    # version vectorisée : on stocke les particules du pseudo temps tau 
+    # dans une matrice Nxd i.e. une ligne = une particule
+    return ((Y - X_tau @ C.T)/std_obs**2) @ C
 
 def score(Y, X_tau, X_0, C, std_obs, tau, eps_a, eps_b):
     """
@@ -93,12 +96,11 @@ def step_reverse_diffusion(Y, X_tau, X_0, C, std_obs, tau, dtau, eps_a, eps_b, r
     return X_tau - drift + diffusion
 
 def reverse_diffusion(num_steps, X_tau1, Y, X_0, C, std_obs, eps_a, eps_b, rng, d):
-    tau = 1.0
     dtau = 1/num_steps
     X_tau = X_tau1
     for i in range(num_steps):
         tau = 1 - i*dtau
-        X_tau = step_reverse_diffusion(Y, X_tau, X_0, C, std_obs, tau, dtau, eps_a, eps_b, rng, d)
+        X_tau = step_reverse_diffusion(Y, X_tau, X_0, C, std_obs, tau, dtau, eps_a, eps_b, rng)
     return X_tau 
 
 # %%
