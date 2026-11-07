@@ -242,18 +242,52 @@ X_hat_ensf = particles_ensf.mean(axis=1)
 rmse_ensf = np.sqrt(np.mean((X_hat_ensf - X)**2, axis=1))
 
 # %%
+"""
+RMSE BPF vs ENSF et difference de compute time
+"""
 
 compute_time_ensf = end_ensf - start_ensf
 compute_time_bpf = end_bpf - start_bpf
 fig, ax = plt.subplots()
 ax.plot(np.arange(T), rmse_ensf, label=f"ENSF : {compute_time_ensf:.2f} secs")
 ax.plot(np.arange(T), rmse_bpf, label=f"BPF : {compute_time_bpf:.2f} secs")
-ax.set_title("RMSE against T")
+ax.set_title(f"RMSE against T, N = {num_particles} particles")
 ax.legend()
 plt.show()
 
 # %%
+"""
+Plot de l'ESS calculé avant rééchantillonage
+"""
 
+fig, ax = plt.subplots()
+ax.plot(np.exp(log_ESS_hist))
+ax.axhline(y=num_particles/2, label="Seuil de rééchantillonage $\\frac{N}{2}$", color="red")
+ax.set_title("ESS calculé avant rééchantillonage")
+ax.legend()
+plt.show()
 
+"""
+ESS est toujours bien inférieur à N/2 donc on rééchantillone à chaque fois
+"""
 
+# %%
 
+"""
+RMSE BPF pour différents nombres de particules
+"""
+
+rmses = []
+for N in [500, 1000, 2000]:
+    lW, particles, _ = bpf_filer(Y, N, d, rng_pf, phi, std_obs, std_state, C)
+    X_hat = np.sum(particles * np.exp(lW)[:, :, None], axis=1)
+    rmses.append(np.sqrt(np.mean((X_hat - X)**2, axis=1)))
+
+fig, ax = plt.subplots()
+for i, N in enumerate([500, 1000, 2000]):
+    ax.plot(np.arange(T), rmses[i], label=f"N = {num_particles}")
+ax.set_title("Evolution de la RMSE pour N=500, 1000 et 2000 particules")
+ax.legend()
+plt.show()
+
+# %%
