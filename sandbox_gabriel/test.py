@@ -3,8 +3,6 @@
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
-from shapely.geometry import Polygon
-from shapely.plotting import plot_polygon
 
 from smc_wildfire.data import (
     get_landscape_path,
@@ -15,6 +13,7 @@ from smc_wildfire.data import (
 from smc_wildfire.ensf import reverse_diffusion
 from smc_wildfire.farsite import farsite_prediction
 from smc_wildfire.geometry import get_max_vertices, normalize_perimeter
+# from smc_wildfire.bpf import bpf_filer
 
 # %%
 
@@ -115,6 +114,37 @@ ax.set_aspect("equal")
 ax.set_xlabel("X")
 ax.set_ylabel("Y")
 ax.set_title("Évolution du périmètre moyen filtré par EnSF")
+ax.grid(alpha=0.2)
+
+plt.show()
+
+# %%
+
+fig, ax = plt.subplots(figsize=(10, 8))
+
+cmap = plt.colormaps["viridis"]
+norm = plt.Normalize(vmin=1, vmax=len(observations))
+
+for k, obs in enumerate(observations, start=1):
+
+    # Fermer le périmètre
+    closed = np.vstack([obs, obs[0]])
+
+    ax.plot(
+        closed[:, 0],
+        closed[:, 1],
+        color=cmap(norm(k)),
+        linewidth=1.5,
+        alpha=0.9
+    )
+
+sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
+fig.colorbar(sm, ax=ax, label="Pas de temps k")
+
+ax.set_aspect("equal")
+ax.set_xlabel("X")
+ax.set_ylabel("Y")
+ax.set_title("Évolution du périmètre observé par EnSF")
 ax.grid(alpha=0.2)
 
 plt.show()
