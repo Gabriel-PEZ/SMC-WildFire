@@ -13,6 +13,7 @@ from smc_wildfire.data import (
 from smc_wildfire.ensf import reverse_diffusion
 from smc_wildfire.farsite import farsite_prediction
 from smc_wildfire.geometry import get_max_vertices, normalize_perimeter
+
 # from smc_wildfire.bpf import bpf_filer
 
 # %%
@@ -23,6 +24,10 @@ initial_perimeter = load_observation(idx_wildfire, idx_time=0)
 crs = gpd.read_file(get_observation_path(idx_wildfire, idx_time=0)).crs
 
 # %%
+
+"""
+Boucle de filtrage
+"""
 
 rng = np.random.default_rng(2003)
 num_particles = 10
@@ -88,6 +93,11 @@ for k in range(1,14): # 13 dossiers x/ dans 1819/
 
 # %%
 
+"""
+Plot de l'évolution de l'EnSF avec moyenne des particules pour chaque pas de
+temps
+"""
+
 fig, ax = plt.subplots(figsize=(10, 8))
 
 cmap = plt.colormaps["viridis"]
@@ -120,6 +130,10 @@ plt.show()
 
 # %%
 
+"""
+Plot de l'évolution de l'observation
+"""
+
 fig, ax = plt.subplots(figsize=(10, 8))
 
 cmap = plt.colormaps["viridis"]
@@ -145,6 +159,94 @@ ax.set_aspect("equal")
 ax.set_xlabel("X")
 ax.set_ylabel("Y")
 ax.set_title("Évolution du périmètre observé par EnSF")
+ax.grid(alpha=0.2)
+
+plt.show()
+
+
+# %%
+"""
+FARSITE UNIQUEMENT : X_{k+1} = FARSITE(X_k)
+"""
+
+X = initial_perimeter
+farsite_predictions = []
+# BOUCLE FARSITE UNIQUEMENT i.e. sans bruit et sans assimilation
+for k in range(13): # 13 dossiers x/ dans 1819/
+
+    parameters = get_parameters_path(idx_wildfire, k)
+    X = farsite_prediction(
+        landscape_path=landscape, 
+        parameters_path=parameters, 
+        initial_perimeter=X.reshape(-1,2),
+        crs=crs
+    )
+    
+    farsite_predictions.append(X)
+
+fig, ax = plt.subplots(figsize=(10, 8))
+
+cmap = plt.colormaps["viridis"]
+norm = plt.Normalize(vmin=1, vmax=len(farsite_predictions))
+
+for k, f_pred in enumerate(farsite_predictions, start=1):
+
+    if k%2 == 0:
+        closed = np.vstack([f_pred, f_pred[0]])
+
+        ax.plot(
+            closed[:, 0],
+            closed[:, 1],
+            color=cmap(norm(k)),
+            linewidth=1.5,
+            alpha=0.9
+        )
+
+sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
+fig.colorbar(sm, ax=ax, label="Pas de temps k")
+
+ax.set_aspect("equal")
+ax.set_xlabel("X")
+ax.set_ylabel("Y")
+ax.set_title("Évolution du périmètre prédit par FARSITE")
+ax.grid(alpha=0.2)
+
+plt.show()
+
+# %%
+
+"""
+Comparaison de X filtré via EnSF, FARSITE uniquement et l'OBS
+"""
+
+k = 13
+idx = k - 1
+
+Y = observations[idx]
+farsite_pred = farsite_predictions[idx]
+X_filtered = filtered_particles[idx].mean(axis=0).reshape(-1, 2)
+
+fig, ax = plt.subplots(figsize=(10, 8))
+
+for perimeter, label, color in [
+    (Y, "Observation", "black"),
+    (farsite_pred, "FARSITE", "red"),
+    (X_filtered, "EnSF", "blue"),
+]:
+    closed = np.vstack([perimeter, perimeter[0]])
+    ax.plot(
+        closed[:, 0],
+        closed[:, 1],
+        label=label,
+        color=color,
+        linewidth=2,
+    )
+
+ax.set_aspect("equal")
+ax.set_title(f"Comparaison des périmètres à k={k}")
+ax.set_xlabel("X")
+ax.set_ylabel("Y")
+ax.legend()
 ax.grid(alpha=0.2)
 
 plt.show()
