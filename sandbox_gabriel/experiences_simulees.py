@@ -6,8 +6,6 @@ import matplotlib.pyplot as plt
 
 # %%
 
-# faire plus tard = vectoriser ces fonctions
-
 r"""
 Coefs de la loi conditionnelle
 X_{\tau} | X_0 = x_0 ~ N(\alpha(\tau)x_0, \beta_{\tau}^2 I)
