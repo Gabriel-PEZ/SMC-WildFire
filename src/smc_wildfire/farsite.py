@@ -7,13 +7,9 @@ from tempfile import TemporaryDirectory
 
 import geopandas as gpd
 import numpy as np
+import shapely
 
-from smc_wildfire.data import (
-    get_landscape_path,
-    get_observation_path,
-    get_parameters_path,
-    get_project_root,
-)
+from smc_wildfire.data import get_project_root
 
 # %%
 
@@ -23,22 +19,30 @@ farsite_exe = farsite_dir / "bin" / "runfarsite.exe"
 assert farsite_exe.is_file()
 
 # %%
-idx_wildfire = 1819
-idx_time = 0
 
-landscape = get_landscape_path(idx_wildfire)
-parameters = get_parameters_path(idx_wildfire, idx_time)
-initial_perimeter = get_observation_path(idx_wildfire, idx_time)
-
-# %%
-
-def farsite_prediction(landscape_path, parameters_path, initial_perimeter_path):
+def farsite_prediction(
+        landscape_path, 
+        parameters_path, 
+        initial_perimeter, # numpy
+        crs # système de coordonnées des obs
+    ):
 
     # on crée un dossier temporaire propre à chaque simulation 
     # pour éviter que si on run farsite avec 30 particules, chaque nouvelle particule 
     # écrase celle d'avant
     with TemporaryDirectory(prefix="farsite_") as tmp_dir:
         work_dir = Path(tmp_dir)
+
+        # permet de créer l'objet Polygon que reçoit FARSITE
+        # utiliser pour transformer une particule en objet Polygon
+        polygon = shapely.geometry.Polygon(initial_perimeter)
+        # on crée le gdf qu'on transforme ensuite en .shp pour FARSITE
+        gdf_new = gpd.GeoDataFrame(
+            geometry=[polygon],
+            crs=crs,
+        )
+        initial_perimeter_path = work_dir / "initial_perimeter.shp"
+        gdf_new.to_file(initial_perimeter_path, index=False)
 
         # farsite se lance avec le fichier FarsiteCmd.txt
         # qui contient landscape_path parameters_path ignition_path 0 output_prefix 2
@@ -94,16 +98,4 @@ def farsite_prediction(landscape_path, parameters_path, initial_perimeter_path):
         coords = np.asarray(final_perimeter.iloc[0].exterior.coords)
         return coords[:-1]
     
-# %%
-
-coords = farsite_prediction(
-    landscape_path=landscape, 
-    parameters_path=parameters, 
-    initial_perimeter_path=initial_perimeter
-)
-
-# %%
-
-coords
-
 # %%
