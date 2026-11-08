@@ -33,11 +33,19 @@ X_0 = Y_0_stacked.ravel() + 0.1 * rng.standard_normal(
 )
 X = X_0.copy() # shape num_particles x 2 * dimY
 
+# pour stocker respectivement les obs, les X après transition et les X filtrés
 observations = []
 predictions = []
 filtered_particles = []
 
-for k in range(3):
+# paramètres de l'article : 
+num_steps = 200
+eps_a = 0.96
+eps_b = 0.03
+C = 1 
+std_obs = 0.5
+
+for k in range(1,14): # 13 dossiers x/ dans 1819/
     # on passe las particules X_0 dans FARSITE qu'on stacke dans une liste 
     # sans ajouter le bruit, qu'on ajoutera une fois que toutes les particules
     # auront été normalisées
@@ -66,13 +74,6 @@ for k in range(3):
 
     predictions.append(X)
 
-    # paramètres de l'article : 
-    num_steps = 200
-    eps_a = 0.96
-    eps_b = 0.03
-    C = 1 
-    std_obs = 0.5
-
     X = reverse_diffusion(
         num_steps=num_steps, 
         Y=Y.ravel(), 
@@ -85,11 +86,37 @@ for k in range(3):
     )
 
     filtered_particles.append(X)
-    
+
 # %%
 
-fig, ax = plt.subplots()
-plot_polygon(Polygon(X[0].reshape(-1,2)), ax=ax)
-plot_polygon(Polygon(Y), ax=ax)
+fig, ax = plt.subplots(figsize=(10, 8))
+
+cmap = plt.colormaps["viridis"]
+norm = plt.Normalize(vmin=1, vmax=len(filtered_particles))
+
+for k, particles in enumerate(filtered_particles, start=1):
+    mean_filtered = particles.mean(axis=0).reshape(-1, 2)
+
+    # Fermer le périmètre
+    closed = np.vstack([mean_filtered, mean_filtered[0]])
+
+    ax.plot(
+        closed[:, 0],
+        closed[:, 1],
+        color=cmap(norm(k)),
+        linewidth=1.5,
+        alpha=0.9
+    )
+
+sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
+fig.colorbar(sm, ax=ax, label="Pas de temps k")
+
+ax.set_aspect("equal")
+ax.set_xlabel("X")
+ax.set_ylabel("Y")
+ax.set_title("Évolution du périmètre moyen filtré par EnSF")
+ax.grid(alpha=0.2)
+
+plt.show()
 
 # %%
