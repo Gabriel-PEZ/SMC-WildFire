@@ -24,6 +24,6 @@ def get_observation_path(idx_wildfire, idx_time):
     return get_project_root() / "data" / f"{idx_wildfire}" / f"{idx_time}" / "fire_boundary.shp" 
 
 def load_observation(idx_wildfire, idx_time):
-    path = get_parameters_path(idx_wildfire, idx_time)
+    path = get_observation_path(idx_wildfire, idx_time)
     gdf = gpd.read_file(path)
     return np.asarray(gdf.geometry.iloc[0].exterior.coords)[:-1,:]
