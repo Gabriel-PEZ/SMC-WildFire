@@ -1,0 +1,36 @@
+Données obtenus depuis le repo Github Fire-EnSF
+
+Chaque dossier = un incendie. Par exemple 1819 est un incendie.
+
+Chaque feu = plusieurs dossiers (0/, 1/,...,13/) correspondant aux observations 
+et paramètres de simulation par période.
+Les feux sont relevés à 12h d'intervalle. 
+0/ = observation initiale, 1/ observation suivante 12 heures plus tard, etc etc...
+
+Par exemple pour 0/ tous les fichiers constituent l'observation initiale Y_0
+- fire_boundary.shp : fichier principal car il contient les coordonnées des points qui délimitent le feu
+- fire_boundary.shx : indique où se trouve chaque polygone dans le fichier .shp
+                      i.e ligne i du .shx permet de retrouver les coordonnées du polygone i dans .shp
+- fire_boundary.dbf : tableau comme un fichier csv. Si le .shp possède plusieurs polygones (i.e. le feu est séparé en deux zones)
+                      alors le .dfb contient une ligne d'informations pour chacun d'eux
+- fire_boundary.prj : système de coordonnées utilisé
+- fire_boundary.cpg : encodage des caractères du fichier .dbf
+
+para.input : 
+décrit comment FARSITE doit simuler la propagation de l'incendie
+Par exemple les premières lignes : 
+FARSITE_START_TIME: 06 18 0000 = début 18 juin à 00h
+FARSITE_END_TIME: 06 18 1200 = fin 18 juin à 12h
+FARSITE_TIMESTEP: 60 = pas de temps configuré de 60 minutes
+FARSITE_DISTANCE_RES: 30 = résolution spatiale utilisée pour les calculs de propagation
+FARSITE_PERIMETER_RES: 60 = résolution spatiale utilisée pour représenter le périmètre
+
+FARSITE_SPOT_PROBABILITY: 0 = mécanisme de départs de feux secondaires par projections de braises désactivé 
+FARSITE_ACCELERATION_ON: 1 = modèle tient compte de l'accélération progressive de la propagation 
+FARSITE_BURN_PERIODS: 1 = une seule fenêtre de combustion est définie du 18 juin à 00h à 11h59
+06 18 0000 1159
+ensuite data sur combustiles, meteo, etc...
+
+Pour chaque feu il y a aussi un fichier numero.lcp et un numero.prj
+- numero.lcp = landscape file, fichier spécifique à FARSITE qui contient des informations géographiques sur le terrain (élévation, pente, canopée...)
+- numero.prj = comment interpréter géographiquement les coordonnées utilisés pour le paysage (même principe que fire_boundary.prj)

@@ -8,3 +8,6 @@ wheels/
 
 # Virtual environments
 .venv
+
+# dossier d'installation de farsite 
+/external/
