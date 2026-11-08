@@ -20,7 +20,10 @@ def get_landscape_path(idx_wildfire):
 def get_parameters_path(idx_wildfire, idx_time):
     return get_project_root() / "data" / f"{idx_wildfire}" / f"{idx_time}" / "para.input"
 
+def get_observation_path(idx_wildfire, idx_time):
+    return get_project_root() / "data" / f"{idx_wildfire}" / f"{idx_time}" / "fire_boundary.shp" 
+
 def load_observation(idx_wildfire, idx_time):
-    path = get_project_root() / "data" / f"{idx_wildfire}" / f"{idx_time}" / "fire_boundary.shp" 
+    path = get_parameters_path(idx_wildfire, idx_time)
     gdf = gpd.read_file(path)
     return np.asarray(gdf.geometry.iloc[0].exterior.coords)[:-1,:]
