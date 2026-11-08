@@ -26,6 +26,9 @@ def farsite_prediction(
         initial_perimeter, # numpy
         crs # système de coordonnées des obs
     ):
+    """
+    initial_perimeter = np.ndarray d*2
+    """
 
     # on crée un dossier temporaire propre à chaque simulation 
     # pour éviter que si on run farsite avec 30 particules, chaque nouvelle particule 
