@@ -11,7 +11,7 @@ from smc_wildfire.data import (
     load_observation,
 )
 from smc_wildfire.ensf import reverse_diffusion
-from smc_wildfire.farsite import farsite_prediction
+from smc_wildfire.farsite import farsite_step
 from smc_wildfire.geometry import get_max_vertices, normalize_perimeter
 
 # from smc_wildfire.bpf import bpf_filer
@@ -57,7 +57,7 @@ for k in range(1,14): # 13 dossiers x/ dans 1819/
     parameters = get_parameters_path(idx_wildfire, k - 1)
     for i in range(len(X)):
 
-        coords_particle = farsite_prediction(
+        coords_particle = farsite_step(
             landscape_path=landscape, 
             parameters_path=parameters, 
             initial_perimeter=X[i].reshape(-1,2),
@@ -175,7 +175,7 @@ farsite_predictions = []
 for k in range(13): # 13 dossiers x/ dans 1819/
 
     parameters = get_parameters_path(idx_wildfire, k)
-    X = farsite_prediction(
+    X = farsite_step(
         landscape_path=landscape, 
         parameters_path=parameters, 
         initial_perimeter=X.reshape(-1,2),

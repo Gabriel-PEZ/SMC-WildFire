@@ -20,7 +20,7 @@ assert farsite_exe.is_file()
 
 # %%
 
-def farsite_prediction(
+def farsite_step(
         landscape_path, 
         parameters_path, 
         initial_perimeter, # numpy
