@@ -11,7 +11,7 @@ from smc_wildfire.data import (
     load_observation,
 )
 from smc_wildfire.ensf import reverse_diffusion
-from smc_wildfire.farsite import farsite_step
+from smc_wildfire.farsite import farsite_step, run_farsite
 from smc_wildfire.geometry import get_max_vertices, normalize_perimeter
 
 # from smc_wildfire.bpf import bpf_filer
@@ -170,22 +170,8 @@ plt.show()
 """
 FARSITE UNIQUEMENT : X_{k+1} = FARSITE(X_k)
 """
-
-
-X = initial_perimeter
-farsite_predictions = []
-# BOUCLE FARSITE UNIQUEMENT i.e. sans bruit et sans assimilation
-for k in range(13): # 13 dossiers x/ dans 1819/
-
-    parameters = get_parameters_path(idx_wildfire, k)
-    X = farsite_step(
-        landscape_path=landscape, 
-        parameters_path=parameters, 
-        initial_perimeter=X.reshape(-1,2),
-        crs=crs
-    )
-    
-    farsite_predictions.append(X)
+idx_wildfire = 1819
+farsite_predictions = run_farsite(idx_wildfire)
 
 fig, ax = plt.subplots(figsize=(10, 8))
 

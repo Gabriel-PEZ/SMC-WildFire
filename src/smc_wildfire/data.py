@@ -27,3 +27,21 @@ def load_observation(idx_wildfire, idx_time):
     path = get_observation_path(idx_wildfire, idx_time)
     gdf = gpd.read_file(path)
     return np.asarray(gdf.geometry.iloc[0].exterior.coords)[:-1,:]
+
+def get_max_timestep(idx_wildfire):
+
+    """
+    fonction qui retourne le plus grand k parmi les sous dossiers 
+    dans un dossier wildfire 
+    """
+
+    root = get_project_root()
+    wildfire_dir = root / "data" / str(idx_wildfire)
+
+    k_max = max(
+        int(path.name)
+        for path in wildfire_dir.iterdir()
+        if path.is_dir() and path.name.isdigit()
+    )
+
+    return k_max

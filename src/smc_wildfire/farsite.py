@@ -9,7 +9,14 @@ import geopandas as gpd
 import numpy as np
 import shapely
 
-from smc_wildfire.data import get_project_root
+from .data import (
+    get_landscape_path,
+    get_max_timestep,
+    get_observation_path,
+    get_parameters_path,
+    get_project_root,
+    load_observation,
+)
 
 # %%
 
@@ -102,3 +109,32 @@ def farsite_step(
         return coords[:-1]
     
 # %%
+
+def run_farsite(idx_wildfire):
+    """
+    fonction run X_{k+1} = FARSITE(X_k) pour l'ensemble des données d'un feu et retourne 
+    l'évolution du périmètre
+    """
+
+    landscape = get_landscape_path(idx_wildfire)
+    initial_perimeter = load_observation(idx_wildfire, idx_time=0)
+    crs = gpd.read_file(get_observation_path(idx_wildfire, idx_time=0)).crs
+
+    X = initial_perimeter
+    farsite_predictions = []
+
+    k_max = get_max_timestep(idx_wildfire)
+
+    # BOUCLE FARSITE UNIQUEMENT i.e. sans bruit et sans assimilation
+    for k in range(k_max): 
+
+        parameters = get_parameters_path(idx_wildfire, k)
+        X = farsite_step(
+            landscape_path=landscape, 
+            parameters_path=parameters, 
+            initial_perimeter=X.reshape(-1,2),
+            crs=crs
+        )
+        
+        farsite_predictions.append(X)
+    return farsite_predictions
