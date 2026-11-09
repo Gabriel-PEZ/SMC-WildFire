@@ -25,17 +25,19 @@ crs = gpd.read_file(get_observation_path(idx_wildfire, idx_time=0)).crs
 
 # %%
 
-"""
-Boucle de filtrage
-"""
-
-rng = np.random.default_rng(2003)
+rng_ensf = np.random.default_rng(2003)
 num_particles = 10
-Y_0_stacked = initial_perimeter.reshape(-1,1) # on concatène en un seul vecteur (h1,v1,h2,v2,..)
-X_0 = Y_0_stacked.ravel() + 0.1 * rng.standard_normal(
-    (num_particles, Y_0_stacked.shape[0])
+initial_perimeter = initial_perimeter.reshape(-1,1) # on concatène en un seul vecteur (h1,v1,h2,v2,..)
+X_0 = initial_perimeter.ravel() + 0.1 * rng_ensf.standard_normal(
+    (num_particles, initial_perimeter.shape[0])
 )
 X = X_0.copy() # shape num_particles x 2 * dimY
+
+# %%
+
+"""
+Boucle de filtrage EnSF
+"""
 
 # pour stocker respectivement les obs, les X après transition et les X filtrés
 observations = []
@@ -74,7 +76,7 @@ for k in range(1,14): # 13 dossiers x/ dans 1819/
 
     for i, part in enumerate(list_X): 
         X[i] = normalize_perimeter(part, num_vertices).reshape(-1,1).squeeze(axis=1)
-        X[i] += rng.standard_normal(2 * num_vertices) * np.sqrt(0.5)
+        X[i] += rng_ensf.standard_normal(2 * num_vertices) * np.sqrt(0.5)
 
     predictions.append(X)
 
@@ -86,7 +88,7 @@ for k in range(1,14): # 13 dossiers x/ dans 1819/
         std_obs=std_obs, 
         eps_a=eps_a, 
         eps_b=eps_b, 
-        rng=rng
+        rng=rng_ensf
     )
 
     filtered_particles.append(X)
@@ -250,5 +252,98 @@ ax.legend()
 ax.grid(alpha=0.2)
 
 plt.show()
+
+# %%
+
+
+def systematic_resampling(W, rng, num_particles):
+
+    W_cumsum = np.cumsum(W)
+    W_cumsum[-1] = 1.0 # pour sécuriser le cumsum à cause des flottants
+    U = np.zeros(num_particles)
+    U[0] = rng.uniform(low=0.0, high=1/num_particles)
+    for i in range(1,num_particles):
+        U[i] = U[0] + i/num_particles
+    return np.searchsorted(W_cumsum, U)
+
+
+def log_ESS(log_W):
+    """
+    On utilise directement les log poids normalisés pour l'ESS et
+    """
+    max_log_W = np.max(2 * log_W)
+    return - max_log_W - np.log(np.exp(2 * log_W - max_log_W).sum())
+
+"""
+def bpf_filer(Y, num_particles, d, rng_pf, phi, std_obs, std_state, C):
+
+    Filtre bootstrap avec resampling systématique selon ESS
+    
+"""
+
+rng_pf = np.random.default_rng(2000)
+
+T = 13
+log_W = np.zeros((T+1, num_particles))
+log_ESS_hist = np.zeros(T+1)
+
+# pour éviter de le calculer plusieurs fois
+log_N = np.log(num_particles)
+log_W[0] = -log_N
+
+# propagation ie X_1|X_0 
+X_0 = initial_perimeter.ravel() + 0.1 * rng_pf.standard_normal(
+    (num_particles, initial_perimeter.shape[0])
+)
+
+X = X_0.copy()
+
+observations_bpf = []
+predictions_bpf = []
+filtered_particles_bpf = []
+
+for t in range(1,14): # 13 dossiers x/ dans 1819/
+    # on passe las particules X_0 dans FARSITE qu'on stacke dans une liste 
+    # sans ajouter le bruit, qu'on ajoutera une fois que toutes les particules
+    # auront été normalisées
+    list_X = []
+    parameters = get_parameters_path(idx_wildfire, t - 1)
+    for i in range(len(X)):
+
+        coords_particle = farsite_prediction(
+            landscape_path=landscape, 
+            parameters_path=parameters, 
+            initial_perimeter=X[i].reshape(-1,2),
+            crs=crs
+        )
+        list_X.append(coords_particle)
+    
+    Y = load_observation(idx_wildfire, t)
+    num_vertices = get_max_vertices(Y, list_X)
+
+    X = np.zeros((num_particles, 2 * num_vertices))
+    Y = normalize_perimeter(Y, num_vertices)
+    observations_bpf.append(Y)
+
+    for i, part in enumerate(list_X): 
+        X[i] = normalize_perimeter(part, num_vertices).reshape(-1,1).squeeze(axis=1)
+        X[i] += rng_pf.standard_normal(2 * num_vertices) * np.sqrt(0.5)
+
+    predictions_bpf.append(X)
+    # C = 1 pour les auteurs
+    log_w = log_W[t-1] + (-1/(2 * std_obs**2) * ((Y.ravel() - C * X)**2).sum(axis=1))
+    max_log_w = np.max(log_w)
+    log_W[t] = log_w - max_log_w - np.log((np.exp(log_w - max_log_w)).sum())
+
+    log_ESS_curr = log_ESS(log_W[t])
+    log_ESS_hist[t] = log_ESS_curr
+
+    # systematic resampling si ESS <= N/2
+    if log_ESS_curr <= log_N - np.log(2):
+        idx_resampling = systematic_resampling(np.exp(log_W[t]), rng_pf, num_particles)
+        X = X[idx_resampling]
+        log_W[t] = -log_N
+
+    filtered_particles_bpf.append(X)
 
 # %%
