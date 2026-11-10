@@ -3,6 +3,7 @@
 import numpy as np
 
 # %%
+
 r"""
 Coefs de la loi conditionnelle
 X_{\tau} | X_0 = x_0 ~ N(\alpha(\tau)x_0, \beta_{\tau}^2 I)
@@ -104,3 +105,6 @@ def reverse_diffusion(num_steps, Y, X_0, C, std_obs, eps_a, eps_b, rng):
         tau = 1 - i*dtau
         X_tau = step_reverse_diffusion(Y, X_tau, X_0, C, std_obs, tau, dtau, eps_a, eps_b, rng)
     return X_tau 
+
+# %%
+
