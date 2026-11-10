@@ -1,6 +1,15 @@
 # %%
 
+import geopandas as gpd
 import numpy as np
+
+from .data import (
+    get_landscape_path,
+    get_max_timestep,
+    get_observation_path,
+    load_observation,
+)
+from .forecast import forecast_particles
 
 # %%
 """
@@ -25,49 +34,61 @@ def log_ESS(log_W):
     max_log_W = np.max(2 * log_W)
     return - max_log_W - np.log(np.exp(2 * log_W - max_log_W).sum())
 
+def run_bpf(idx_wildfire, num_particles, C, std_obs, std_state, std_init, rng):
 
-def bpf_filer(Y, num_particles, d, rng_pf, phi, std_obs, std_state, C):
-    """
-    Filtre bootstrap avec resampling systématique selon ESS
-    """
-    T = Y.shape[0]
-    log_W = np.zeros((T, num_particles))
-    particles = np.zeros((T, num_particles, d))
-    log_ESS_hist = np.zeros(T)
-    # init des particules
-    particles_0 = rng_pf.standard_normal((num_particles, d))
+    landscape = get_landscape_path(idx_wildfire)
+    initial_perimeter = load_observation(idx_wildfire, idx_time=0)
+    crs = gpd.read_file(get_observation_path(idx_wildfire, idx_time=0)).crs
+
+    T = get_max_timestep(idx_wildfire)
+    log_W = np.zeros((T+1, num_particles))
+    log_ESS_hist = np.zeros(T+1)
+
     # pour éviter de le calculer plusieurs fois
     log_N = np.log(num_particles)
+    log_W[0] = -log_N
+    log_ESS_hist[0] = log_N
 
     # propagation ie X_1|X_0 
-    particles[0] = phi*particles_0 + rng_pf.standard_normal((num_particles, d)) * std_state
-    log_w = (-1/(2 * std_obs**2)*(Y[0] - C * particles[0])**2).sum(axis=1)
-    max_log_w = np.max(log_w)
-    # log sum exp avec trick du max pour éviter underflow/overflow et normalisation directement avec l'espace log
-    log_W[0] = log_w - max_log_w - np.log((np.exp(log_w - max_log_w)).sum())
+    X_0 = initial_perimeter.ravel() + std_init * rng.standard_normal(
+        (num_particles, initial_perimeter.size)
+    )
 
-    log_ESS_curr = log_ESS(log_W[0])
-    log_ESS_hist[0] = log_ESS_curr
-    # systematic resampling si ESS <= N/2
-    if log_ESS_curr <= log_N - np.log(2):
-        idx_resampling = systematic_resampling(np.exp(log_W[0]), rng_pf, num_particles)
-        particles[0] = particles[0][idx_resampling]
-        log_W[0] = -log_N
+    X = X_0.copy()
 
-    for t in range(1,T):
+    observations = [initial_perimeter]
+    filtered_particles = [X_0.copy()]
 
-        particles[t] = phi*particles[t-1] + rng_pf.standard_normal((num_particles, d)) * std_state
-        log_w = log_W[t-1] + (-1/(2 * std_obs**2) * ((Y[t] - C * particles[t])**2).sum(axis=1))
+    for k in range(1, T + 1): 
+        
+        # propagation des particules X_k = FARSITE(X_{k-1}) + bruit
+        Y, X = forecast_particles(
+            X_prev=X,
+            k=k,
+            idx_wildfire=idx_wildfire,
+            landscape=landscape,
+            crs=crs,
+            rng=rng,
+            std_state=std_state
+        )
+
+        # observation k normalisé (normalisation sommets + orientation)
+        observations.append(Y)
+
+        # C = 1 pour les auteurs
+        log_w = log_W[k-1] + (-1/(2 * std_obs**2) * ((Y.ravel() - C * X)**2).sum(axis=1))
         max_log_w = np.max(log_w)
-        log_W[t] = log_w - max_log_w - np.log((np.exp(log_w - max_log_w)).sum())
+        log_W[k] = log_w - max_log_w - np.log((np.exp(log_w - max_log_w)).sum())
 
-        log_ESS_curr = log_ESS(log_W[t])
-        log_ESS_hist[t] = log_ESS_curr
+        log_ESS_curr = log_ESS(log_W[k])
+        log_ESS_hist[k] = log_ESS_curr
 
         # systematic resampling si ESS <= N/2
         if log_ESS_curr <= log_N - np.log(2):
-            idx_resampling = systematic_resampling(np.exp(log_W[t]), rng_pf, num_particles)
-            particles[t] = particles[t][idx_resampling]
-            log_W[t] = -log_N
+            idx_resampling = systematic_resampling(np.exp(log_W[k]), rng, num_particles)
+            X = X[idx_resampling]
+            log_W[k] = -log_N
 
-    return log_W, particles, log_ESS_hist
+        filtered_particles.append(X)
+
+    return observations, filtered_particles, log_W, log_ESS_hist
