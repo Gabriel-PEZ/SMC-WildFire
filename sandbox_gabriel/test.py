@@ -4,7 +4,6 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
 
-from smc_wildfire.bpf import run_bpf
 from smc_wildfire.data import (
     get_landscape_path,
     get_observation_path,
@@ -12,6 +11,7 @@ from smc_wildfire.data import (
 )
 from smc_wildfire.ensf import run_ensf
 from smc_wildfire.farsite import run_farsite
+from smc_wildfire.smc_filters import run_bootstrap_pf
 
 # %%
 
@@ -194,7 +194,7 @@ Boucle de filtrage BPF
 
 rng_bpf = np.random.default_rng(2000)
 
-observations_bpf, filtered_particles_bpf, log_W, log_ESS_hist = run_bpf(
+observations_bpf, filtered_particles_bpf, log_W, log_ESS_hist = run_bootstrap_pf(
     idx_wildfire=idx_wildfire,
     num_particles=num_particles,
     C=C,
@@ -203,3 +203,6 @@ observations_bpf, filtered_particles_bpf, log_W, log_ESS_hist = run_bpf(
     std_init=std_init,
     rng=rng_bpf
 )
+
+
+# %%
